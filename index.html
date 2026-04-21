@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RapidForensics</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Menu Bar -->
+  <header id="menubar">
+    <div class="menubar-left">
+      <span class="app-name">RapidForensics</span>
+      <nav class="menubar-menus">
+        <button class="menu-btn" data-menu="file">File</button>
+        <button class="menu-btn" data-menu="view">View</button>
+        <button class="menu-btn" data-menu="help">Help</button>
+      </nav>
+    </div>
+    <div class="menubar-center">
+      <div id="tab-bar">
+        <!-- Grid tabs rendered here -->
+      </div>
+    </div>
+    <div class="menubar-right">
+      <span id="image-info"></span>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div id="main-layout">
+
+    <!-- Left: History Panel -->
+    <aside id="history-panel">
+      <!-- Drop zone lives here, always visible -->
+      <div id="drop-zone" class="drop-zone-panel">
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="16" width="48" height="36" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
+          <circle cx="22" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M8 42 L20 30 L30 40 L40 28 L56 42" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        </svg>
+        <span id="drop-zone-label">Drop image or <label for="file-input" class="file-label">browse</label></span>
+        <input type="file" id="file-input" accept="image/*" hidden>
+      </div>
+      <div class="panel-header">History</div>
+      <div id="history-list">
+        <div class="history-empty">No image loaded</div>
+      </div>
+    </aside>
+
+    <!-- Center: Grid Area -->
+    <main id="grid-area">
+      <div id="tile-grid" hidden>
+        <!-- Tiles rendered here -->
+      </div>
+    </main>
+
+    <!-- Right: Parameter Panel -->
+    <aside id="param-panel" class="panel-hidden">
+      <div class="panel-header">
+        <span id="param-panel-title">Filter</span>
+        <button id="param-panel-close" title="Close (Esc)">×</button>
+      </div>
+      <div id="param-panel-body">
+        <div id="param-panel-top">
+          <button id="apply-btn" class="btn-secondary" hidden>Apply</button>
+          <button id="promote-btn" class="btn-primary">Promote</button>
+        </div>
+        <div id="preset-bar">
+          <!-- Preset pills rendered here -->
+        </div>
+        <div id="param-controls">
+          <!-- Param sliders rendered here -->
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Hidden canvas for image processing -->
+  <canvas id="work-canvas" hidden></canvas>
+
+  <!-- Large image preview overlay -->
+  <div id="preview-overlay" class="preview-overlay hidden" role="dialog" aria-modal="true">
+    <div class="preview-header">
+      <span id="preview-label"></span>
+      <button id="preview-close" title="Close (Esc or Space)">×</button>
+    </div>
+    <div class="preview-canvas-wrap">
+      <canvas id="preview-canvas"></canvas>
+    </div>
+    <div class="preview-footer">
+      <span id="preview-dims"></span>
+    </div>
+  </div>
+
+  <!-- Keybind bar -->
+  <footer id="keybind-bar"></footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
