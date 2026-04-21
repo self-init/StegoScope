@@ -322,6 +322,13 @@ html, body {
 .tile-meta-content .meta-key { color: var(--accent); }
 .tile-meta-content .meta-val { color: var(--text-primary); }
 
+.tile-meta-content .meta-line { padding: 1px 0; }
+.tile-meta-content .meta-line.sev-info  { color: var(--text-primary); }
+.tile-meta-content .meta-line.sev-warn  { color: #d4a24a; }
+.tile-meta-content .meta-line.sev-warn  .meta-key { color: #d4a24a; }
+.tile-meta-content .meta-line.sev-alert { color: #e06060; background: rgba(224, 96, 96, 0.08); border-left: 2px solid #e06060; padding-left: 4px; }
+.tile-meta-content .meta-line.sev-alert .meta-key { color: #f08080; }
+
 /* ===================== PARAMETER PANEL ===================== */
 #param-panel {
   width: var(--param-w);

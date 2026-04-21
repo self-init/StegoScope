@@ -245,16 +245,35 @@ function renderMetaTile(tileEl, result) {
   if (!pre) return;
   if (result?.text) {
     pre.textContent = result.text;
+  } else if (Array.isArray(result?.entries)) {
+    while (pre.firstChild) pre.removeChild(pre.firstChild);
+    for (const entry of result.entries) {
+      pre.appendChild(buildMetaLine(String(entry.label ?? ''), String(entry.detail ?? ''), entry.severity));
+    }
   } else if (result?.entries) {
-    pre.innerHTML = '';
+    while (pre.firstChild) pre.removeChild(pre.firstChild);
     for (const [key, val] of Object.entries(result.entries)) {
-      const line = document.createElement('div');
-      line.innerHTML = `<span class="meta-key">${escHtml(key)}</span>: <span class="meta-val">${escHtml(String(val))}</span>`;
-      pre.appendChild(line);
+      pre.appendChild(buildMetaLine(key, String(val), null));
     }
   }
   const loadingDiv = tileEl.querySelector('.tile-loading');
   if (loadingDiv) loadingDiv.style.display = 'none';
+}
+
+function buildMetaLine(label, detail, severity) {
+  const line = document.createElement('div');
+  line.className = 'meta-line' + (severity ? ' sev-' + severity : '');
+  const keySpan = document.createElement('span');
+  keySpan.className = 'meta-key';
+  keySpan.textContent = label;
+  const sep = document.createTextNode(': ');
+  const valSpan = document.createElement('span');
+  valSpan.className = 'meta-val';
+  valSpan.textContent = detail;
+  line.appendChild(keySpan);
+  line.appendChild(sep);
+  line.appendChild(valSpan);
+  return line;
 }
 
 function escHtml(str) {
