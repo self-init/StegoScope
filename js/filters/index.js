@@ -14,6 +14,7 @@ import { histogramFilter }  from './histogram.js';
 import { jpegGhostFilter }  from './jpeg-ghost.js';
 import { thumbnailFilter }  from './thumbnail.js';
 import { gpsFilter }        from './gps.js';
+import { quantizationFilter } from './quantization.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -32,6 +33,7 @@ export const FILTERS = {
   'jpeg-ghost': jpegGhostFilter,
   thumbnail: thumbnailFilter,
   gps:       gpsFilter,
+  quantization: quantizationFilter,
 };
 
 /**
