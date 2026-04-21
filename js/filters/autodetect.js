@@ -17,6 +17,7 @@ export const autodetectFilter = {
 
     alphaLsbStego(imageData, entries);
     bitplaneEntropy(imageData, entries);
+    crossChannelLsbCorrelation(imageData, entries);
 
     if (rawFile) {
       const buf = await readBuffer(rawFile);
@@ -110,6 +111,54 @@ function bitplaneEntropy(img, entries) {
       severity: 'warn',
     });
   }
+}
+
+// Heuristic 2b: Cross-channel LSB correlation
+// For each channel pair, compute Pearson correlation between bit-0 sequences.
+// Strong correlation (|r| > 0.15) suggests one channel's LSB is locked to
+// another's — classic cross-channel LSB camouflage. Fire hint to try XOR.
+function crossChannelLsbCorrelation(img, entries) {
+  const src = img.data;
+  const n = img.width * img.height;
+  const lsbs = { R: new Uint8Array(n), G: new Uint8Array(n), B: new Uint8Array(n), A: new Uint8Array(n) };
+  let meanR = 0, meanG = 0, meanB = 0, meanA = 0;
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const lr = src[i]     & 1;
+    const lg = src[i + 1] & 1;
+    const lb = src[i + 2] & 1;
+    const la = src[i + 3] & 1;
+    lsbs.R[p] = lr; lsbs.G[p] = lg; lsbs.B[p] = lb; lsbs.A[p] = la;
+    meanR += lr;   meanG += lg;   meanB += lb;   meanA += la;
+  }
+  meanR /= n; meanG /= n; meanB /= n; meanA /= n;
+
+  const pairs = [
+    ['R', 'A'], ['G', 'A'], ['B', 'A'],
+    ['R', 'G'], ['R', 'B'], ['G', 'B'],
+  ];
+  const means = { R: meanR, G: meanG, B: meanB, A: meanA };
+  const alerts = [];
+
+  for (const [x, y] of pairs) {
+    const ax = lsbs[x], ay = lsbs[y];
+    const mx = means[x], my = means[y];
+    let cov = 0, vx = 0, vy = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = ax[i] - mx, dy = ay[i] - my;
+      cov += dx * dy; vx += dx * dx; vy += dy * dy;
+    }
+    if (vx === 0 || vy === 0) continue;
+    const r = cov / Math.sqrt(vx * vy);
+    if (Math.abs(r) >= 0.15) {
+      const sev = Math.abs(r) >= 0.30 ? 'alert' : 'warn';
+      alerts.push({
+        label: `LSB corr ${x} vs ${y}`,
+        detail: `r=${r.toFixed(3)} — try Bitplane XOR ${x} XOR ${y} bit0`,
+        severity: sev,
+      });
+    }
+  }
+  for (const a of alerts) entries.push(a);
 }
 
 // Heuristic 3: Trailing bytes
