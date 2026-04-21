@@ -13,6 +13,7 @@ import { waveletFilter }    from './wavelet.js';
 import { histogramFilter }  from './histogram.js';
 import { jpegGhostFilter }  from './jpeg-ghost.js';
 import { thumbnailFilter }  from './thumbnail.js';
+import { gpsFilter }        from './gps.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -30,6 +31,7 @@ export const FILTERS = {
   histogram: histogramFilter,
   'jpeg-ghost': jpegGhostFilter,
   thumbnail: thumbnailFilter,
+  gps:       gpsFilter,
 };
 
 /**
