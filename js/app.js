@@ -186,7 +186,17 @@ function buildTileEl(tile, idx) {
   el.appendChild(wrap);
   el.appendChild(footer);
 
-  el.addEventListener('click', () => focusTile(idx));
+  footer.addEventListener('click', (e) => { e.stopPropagation(); focusTile(idx); });
+  if (!filter?.meta) {
+    wrap.style.cursor = 'zoom-in';
+    wrap.addEventListener('click', (e) => {
+      e.stopPropagation();
+      focusTile(idx);
+      showPreview();
+    });
+  } else {
+    wrap.addEventListener('click', (e) => { e.stopPropagation(); focusTile(idx); });
+  }
   el.addEventListener('focus', () => { state.focusedTileIdx = idx; el.classList.add('focused'); });
   el.addEventListener('blur', () => el.classList.remove('focused'));
   el.addEventListener('keydown', handleTileKeydown);
