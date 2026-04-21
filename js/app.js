@@ -65,7 +65,6 @@ function loadImageFile(file) {
     state.history = [{ canvas, filterId: null, presetName: null, label: 'Original' }];
     state.activeHistoryIdx = 0;
 
-    imageInfo.textContent = `${img.naturalWidth} × ${img.naturalHeight} — ${file.name}`;
 
     // Update drop zone label to show current file
     const dzLabel = document.getElementById('drop-zone-label');
@@ -136,6 +135,8 @@ function renderGrid() {
     resultImageData: null,
     loading: false,
   }));
+
+  updateMemoryInfo();
 
   state.tiles.forEach((tile, idx) => {
     const el = buildTileEl(tile, idx);
@@ -216,6 +217,9 @@ async function runTile(idx) {
   if (loadingDiv) loadingDiv.style.display = 'flex';
   tile.loading = true;
 
+  // Yield to browser so spinner paints before blocking computation
+  await new Promise(r => setTimeout(r, 0));
+
   try {
     const result = await runFilter(
       tile.filterId,
@@ -227,6 +231,7 @@ async function runTile(idx) {
 
     tile.resultImageData = result;
     tile.loading = false;
+    updateMemoryInfo();
 
     if (filter?.meta) {
       renderMetaTile(tileEl, result);
@@ -288,6 +293,21 @@ function buildMetaLine(label, detail, severity) {
 
 function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function updateMemoryInfo() {
+  if (!state.baseImageData) return;
+  let bytes = state.baseImageData.width * state.baseImageData.height * 4;
+  for (const tile of state.tiles) {
+    if (tile.resultImageData instanceof ImageData) {
+      bytes += tile.resultImageData.width * tile.resultImageData.height * 4;
+    }
+  }
+  const memStr = bytes >= 1048576
+    ? `${(bytes / 1048576).toFixed(1)} MB`
+    : `${(bytes / 1024).toFixed(0)} KB`;
+  const { width: w, height: h } = state.baseImageData;
+  imageInfo.textContent = `${w} × ${h} · ${memStr} — ${state.rawFile?.name ?? ''}`;
 }
 
 // =====================================================================
