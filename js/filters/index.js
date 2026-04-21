@@ -11,6 +11,7 @@ import { bitplaneFilter }   from './bitplane.js';
 import { pcaFilter }        from './pca.js';
 import { waveletFilter }    from './wavelet.js';
 import { histogramFilter }  from './histogram.js';
+import { jpegGhostFilter }  from './jpeg-ghost.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -26,6 +27,7 @@ export const FILTERS = {
   pca:       pcaFilter,
   wavelet:   waveletFilter,
   histogram: histogramFilter,
+  'jpeg-ghost': jpegGhostFilter,
 };
 
 /**
