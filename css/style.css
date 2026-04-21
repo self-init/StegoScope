@@ -430,6 +430,30 @@ html, body {
 .param-slider::-webkit-slider-thumb:hover { background: var(--accent-hover); }
 .param-slider:focus::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent); }
 
+.param-select {
+  width: 100%;
+  background: var(--bg-mid);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+.param-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.param-select option { background: var(--bg-mid); }
+
+.preset-bar-title {
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
 /* Promote / Apply row — sits at top of panel body */
 #param-panel-top {
   padding: 10px 8px;
@@ -479,6 +503,149 @@ html, body {
   vertical-align: middle;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ===================== DROP ZONE (grid-area fullscreen) ===================== */
+.drop-zone-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg-darkest);
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 10;
+  font-size: 14px;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.drop-zone-grid:hover { background: rgba(255,255,255,0.025); color: var(--text-primary); }
+.drop-zone-grid.drag-over {
+  background: rgba(0,120,212,0.08);
+  color: var(--accent);
+  outline: 2px dashed var(--accent);
+  outline-offset: -10px;
+}
+[hidden] { display: none !important; }
+
+/* ===================== MENU DROPDOWN ===================== */
+.menu-dropdown {
+  position: absolute;
+  top: var(--header-h);
+  left: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  min-width: 210px;
+  z-index: 600;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.menu-dropdown.hidden { display: none; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+.menu-item:hover, .menu-item:focus { background: var(--accent); color: #fff; }
+.menu-item-hint { color: var(--text-muted); font-size: 11px; }
+.menu-item:hover .menu-item-hint, .menu-item:focus .menu-item-hint { color: rgba(255,255,255,0.7); }
+.menu-item-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ===================== TILE ZOOM BUTTON ===================== */
+.tile-zoom-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 2;
+}
+.tile-canvas-wrap:hover .tile-zoom-btn { display: flex; }
+.tile-zoom-btn:hover { color: var(--text-bright); background: rgba(0,0,0,0.88); }
+
+/* ===================== ZOOM CONTROLS ===================== */
+#zoom-controls {
+  position: fixed;
+  bottom: calc(var(--keybind-h) + 8px);
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  z-index: 50;
+  user-select: none;
+}
+#zoom-controls button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#zoom-controls button:hover { color: var(--text-primary); background: var(--bg-mid); }
+#zoom-label { font-size: 11px; color: var(--text-muted); min-width: 34px; text-align: center; }
+
+/* ===================== HISTORY PANEL HEADER ACTIONS ===================== */
+.panel-header-actions { display: flex; gap: 1px; margin-right: -4px; }
+.panel-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.panel-icon-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-mid); }
+.panel-icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ===================== KEYBIND BAR — key separators ===================== */
+.kb-sep {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 1px;
+  line-height: 1;
+}
+.kb-item kbd.kb-key {
+  font-family: 'Menlo', 'Consolas', monospace;
 }
 
 /* ===================== SCROLLBAR GLOBAL ===================== */

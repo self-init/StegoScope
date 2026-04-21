@@ -18,13 +18,13 @@
       </nav>
     </div>
     <div class="menubar-center">
-      <div id="tab-bar">
-        <!-- Grid tabs rendered here -->
-      </div>
+      <div id="tab-bar"></div>
     </div>
     <div class="menubar-right">
       <span id="image-info"></span>
     </div>
+    <!-- Shared dropdown panel (positioned absolutely under triggering button) -->
+    <div id="menu-dropdown" class="menu-dropdown hidden"></div>
   </header>
 
   <!-- Main Layout -->
@@ -32,17 +32,13 @@
 
     <!-- Left: History Panel -->
     <aside id="history-panel">
-      <!-- Drop zone lives here, always visible -->
-      <div id="drop-zone" class="drop-zone-panel">
-        <svg width="28" height="28" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="8" y="16" width="48" height="36" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
-          <circle cx="22" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
-          <path d="M8 42 L20 30 L30 40 L40 28 L56 42" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        </svg>
-        <span id="drop-zone-label">Drop image or <label for="file-input" class="file-label">browse</label></span>
-        <input type="file" id="file-input" accept="image/*" hidden>
+      <div class="panel-header">
+        History
+        <div class="panel-header-actions">
+          <button id="undo-btn" class="panel-icon-btn" title="Undo (Ctrl+Z)" disabled>↩</button>
+          <button id="redo-btn" class="panel-icon-btn" title="Redo (Ctrl+Y)" disabled>↪</button>
+        </div>
       </div>
-      <div class="panel-header">History</div>
       <div id="history-list">
         <div class="history-empty">No image loaded</div>
       </div>
@@ -50,9 +46,25 @@
 
     <!-- Center: Grid Area -->
     <main id="grid-area">
-      <div id="tile-grid" hidden>
-        <!-- Tiles rendered here -->
+      <!-- Drop zone — fills grid, hidden after image loaded -->
+      <div id="drop-zone" class="drop-zone-grid">
+        <svg width="40" height="40" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="16" width="48" height="36" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
+          <circle cx="22" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M8 42 L20 30 L30 40 L40 28 L56 42" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        </svg>
+        <span id="drop-zone-label">Drop image or <label for="file-input" class="file-label">browse</label></span>
+        <input type="file" id="file-input" accept="image/*" hidden>
       </div>
+
+      <!-- Zoom controls -->
+      <div id="zoom-controls">
+        <button id="zoom-out-btn" title="Zoom Out (Ctrl+−)">−</button>
+        <span id="zoom-label">100%</span>
+        <button id="zoom-in-btn" title="Zoom In (Ctrl+=)">+</button>
+      </div>
+
+      <div id="tile-grid" hidden></div>
     </main>
 
     <!-- Right: Parameter Panel -->
@@ -63,15 +75,12 @@
       </div>
       <div id="param-panel-body">
         <div id="param-panel-top">
-          <button id="apply-btn" class="btn-secondary" hidden>Apply</button>
-          <button id="promote-btn" class="btn-primary">Promote</button>
+          <button id="apply-btn"       class="btn-secondary" hidden>Apply</button>
+          <button id="promote-btn"     class="btn-primary">Promote</button>
+          <button id="export-tile-btn" class="btn-secondary">Export</button>
         </div>
-        <div id="preset-bar">
-          <!-- Preset pills rendered here -->
-        </div>
-        <div id="param-controls">
-          <!-- Param sliders rendered here -->
-        </div>
+        <div id="preset-bar"></div>
+        <div id="param-controls"></div>
       </div>
     </aside>
 

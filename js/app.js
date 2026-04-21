@@ -6,17 +6,18 @@ import { BUILTIN_TABS } from './presets.js';
 // =====================================================================
 const state = {
   rawFile: null,
-  baseCanvas: null,      // current base ImageData source (HTMLCanvasElement)
+  baseCanvas: null,      // current base (HTMLCanvasElement)
   baseImageData: null,   // ImageData of current base
   history: [],           // [{ canvas, filterId, presetName, label }]
   activeHistoryIdx: 0,
   currentTabIdx: 0,
   focusedTileIdx: -1,
-  tiles: [],             // array of tile descriptor objects
+  tiles: [],
   panelOpen: false,
   panelTileIdx: -1,
   panelParams: null,
-  panelDirty: false,     // params changed since last apply
+  panelDirty: false,
+  zoomLevel: 3,
 };
 
 // =====================================================================
@@ -26,6 +27,7 @@ const dropZone       = document.getElementById('drop-zone');
 const fileInput      = document.getElementById('file-input');
 const tileGrid       = document.getElementById('tile-grid');
 const historyList    = document.getElementById('history-list');
+const historyPanel   = document.getElementById('history-panel');
 const tabBar         = document.getElementById('tab-bar');
 const imageInfo      = document.getElementById('image-info');
 const paramPanel     = document.getElementById('param-panel');
@@ -35,12 +37,58 @@ const presetBar      = document.getElementById('preset-bar');
 const paramCtrls     = document.getElementById('param-controls');
 const promoteBtn     = document.getElementById('promote-btn');
 const applyBtn       = document.getElementById('apply-btn');
+const exportTileBtn  = document.getElementById('export-tile-btn');
+const undoBtn        = document.getElementById('undo-btn');
+const redoBtn        = document.getElementById('redo-btn');
+const menuDropdown   = document.getElementById('menu-dropdown');
+const menubar        = document.getElementById('menubar');
 const previewOverlay = document.getElementById('preview-overlay');
 const previewCanvas  = document.getElementById('preview-canvas');
 const previewLabel   = document.getElementById('preview-label');
 const previewDims    = document.getElementById('preview-dims');
 const previewClose   = document.getElementById('preview-close');
 const keybindBar     = document.getElementById('keybind-bar');
+const zoomInBtn      = document.getElementById('zoom-in-btn');
+const zoomOutBtn     = document.getElementById('zoom-out-btn');
+const zoomLabel      = document.getElementById('zoom-label');
+
+// =====================================================================
+// Zoom
+// =====================================================================
+const ZOOM_TILE_WIDTHS = [140, 180, 220, 300, 380];
+const ZOOM_LABELS      = ['50%', '75%', '100%', '150%', '200%'];
+
+function setZoom(level) {
+  state.zoomLevel = Math.max(1, Math.min(ZOOM_TILE_WIDTHS.length, level));
+  tileGrid.style.gridTemplateColumns =
+    `repeat(auto-fill, minmax(${ZOOM_TILE_WIDTHS[state.zoomLevel - 1]}px, 1fr))`;
+  zoomLabel.textContent = ZOOM_LABELS[state.zoomLevel - 1];
+}
+
+function adjustZoom(delta) { setZoom(state.zoomLevel + delta); }
+
+zoomInBtn.addEventListener('click',  () => adjustZoom(+1));
+zoomOutBtn.addEventListener('click', () => adjustZoom(-1));
+
+// =====================================================================
+// Export helpers
+// =====================================================================
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportCurrentImage() {
+  const entry = state.history[state.activeHistoryIdx];
+  if (!entry) return;
+  entry.canvas.toBlob(
+    blob => downloadBlob(blob, `rapidforensics-step${state.activeHistoryIdx + 1}.png`),
+    'image/png',
+  );
+}
 
 // =====================================================================
 // Image loading
@@ -61,16 +109,11 @@ function loadImageFile(file) {
     state.baseCanvas    = canvas;
     state.baseImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    // Bootstrap history
     state.history = [{ canvas, filterId: null, presetName: null, label: 'Original' }];
     state.activeHistoryIdx = 0;
 
-
-    // Update drop zone label to show current file
-    const dzLabel = document.getElementById('drop-zone-label');
-    if (dzLabel) dzLabel.innerHTML = `<strong style="color:var(--text-primary)">${escHtml(file.name)}</strong><br><span style="font-size:10px">Drop or <label for="file-input" class="file-label">browse</label> to replace</span>`;
-
-    tileGrid.hidden = false;
+    dropZone.hidden   = true;
+    tileGrid.hidden   = false;
 
     renderTabs();
     renderHistory();
@@ -81,10 +124,8 @@ function loadImageFile(file) {
   img.src = url;
 }
 
-// Accept drops on the panel drop zone AND anywhere on the grid area
-function handleDragOver(e) { e.preventDefault(); dropZone.classList.add('drag-over'); }
+function handleDragOver(e)  { e.preventDefault(); dropZone.classList.add('drag-over'); }
 function handleDragLeave(e) {
-  // Only clear if leaving the element entirely (not entering a child)
   if (!e.currentTarget.contains(e.relatedTarget)) dropZone.classList.remove('drag-over');
 }
 function handleDrop(e) {
@@ -94,14 +135,108 @@ function handleDrop(e) {
   if (file && file.type.startsWith('image/')) loadImageFile(file);
 }
 
-dropZone.addEventListener('dragover', handleDragOver);
+dropZone.addEventListener('dragover',  handleDragOver);
 dropZone.addEventListener('dragleave', handleDragLeave);
-dropZone.addEventListener('drop', handleDrop);
-
-// Also accept drops anywhere in the grid so users can drag to the center naturally
+dropZone.addEventListener('drop',      handleDrop);
+// Clicking anywhere in drop zone (except the label, which already triggers input) opens picker
+dropZone.addEventListener('click', e => {
+  if (!e.target.closest('label')) fileInput.click();
+});
 document.getElementById('grid-area').addEventListener('dragover', e => e.preventDefault());
 document.getElementById('grid-area').addEventListener('drop', handleDrop);
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadImageFile(fileInput.files[0]); });
+
+// =====================================================================
+// Menu bar
+// =====================================================================
+let openMenu = null;
+
+const FILE_MENU = [
+  { label: 'Open Image…',          action: () => fileInput.click() },
+  { sep: true },
+  { label: 'Export Current Image', action: exportCurrentImage },
+];
+
+function getViewMenu() {
+  return [
+    { label: 'Preview',    action: showPreview,          keyhint: 'Space' },
+    { sep: true },
+    { label: 'Zoom In',    action: () => adjustZoom(+1), keyhint: 'Ctrl+=' },
+    { label: 'Zoom Out',   action: () => adjustZoom(-1), keyhint: 'Ctrl+−' },
+    { label: 'Reset Zoom', action: () => setZoom(3),     keyhint: 'Ctrl+0' },
+  ];
+}
+
+function openMenuDropdown(name, items) {
+  if (openMenu === name) { closeMenuDropdown(); return; }
+  openMenu = name;
+
+  menuDropdown.innerHTML = '';
+  items.forEach(item => {
+    if (item.sep) {
+      const s = document.createElement('div');
+      s.className = 'menu-item-sep';
+      menuDropdown.appendChild(s);
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'menu-item';
+    if (item.keyhint) {
+      btn.innerHTML = `<span>${escHtml(item.label)}</span><span class="menu-item-hint">${escHtml(item.keyhint)}</span>`;
+    } else {
+      btn.textContent = item.label;
+    }
+    btn.addEventListener('click', () => { closeMenuDropdown(); item.action(); });
+    menuDropdown.appendChild(btn);
+  });
+
+  const triggerBtn = menubar.querySelector(`.menu-btn[data-menu="${name}"]`);
+  if (triggerBtn) {
+    menuDropdown.style.left = triggerBtn.getBoundingClientRect().left + 'px';
+  }
+  menuDropdown.classList.remove('hidden');
+  menuDropdown.querySelector('.menu-item')?.focus();
+}
+
+function closeMenuDropdown() {
+  openMenu = null;
+  menuDropdown.classList.add('hidden');
+}
+
+document.querySelectorAll('.menu-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const name = btn.dataset.menu;
+    if (name === 'file') openMenuDropdown('file', FILE_MENU);
+    else if (name === 'view') openMenuDropdown('view', getViewMenu());
+  });
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      closeMenuDropdown();
+      if (state.baseImageData) focusTile(0);
+    }
+  });
+});
+
+document.addEventListener('click', e => {
+  if (openMenu && !menubar.contains(e.target)) closeMenuDropdown();
+});
+
+menuDropdown.addEventListener('keydown', e => {
+  const items = [...menuDropdown.querySelectorAll('.menu-item')];
+  const cur   = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    items[(cur + 1) % items.length]?.focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    items[(cur - 1 + items.length) % items.length]?.focus();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeMenuDropdown();
+  }
+});
 
 // =====================================================================
 // Tab rendering
@@ -117,6 +252,19 @@ function renderTabs() {
     tabBar.appendChild(btn);
   });
 }
+
+tabBar.addEventListener('keydown', e => {
+  const tabs = [...tabBar.querySelectorAll('.tab-btn')];
+  const cur  = tabs.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (state.baseImageData) focusTile(0);
+  } else if (e.key === 'ArrowLeft' && cur > 0) {
+    e.preventDefault(); tabs[cur - 1].focus();
+  } else if (e.key === 'ArrowRight' && cur < tabs.length - 1) {
+    e.preventDefault(); tabs[cur + 1].focus();
+  }
+});
 
 // =====================================================================
 // Grid rendering
@@ -163,43 +311,49 @@ function buildTileEl(tile, idx) {
   } else {
     const canvas = document.createElement('canvas');
     wrap.appendChild(canvas);
+
+    // Magnifying glass — opens preview
+    const zoomBtn = document.createElement('button');
+    zoomBtn.className = 'tile-zoom-btn';
+    zoomBtn.title = 'Preview (Space)';
+    zoomBtn.innerHTML = `<svg width="19" height="19" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <circle cx="6.5" cy="6.5" r="4.5"/>
+      <line x1="10.5" y1="10.5" x2="14.5" y2="14.5"/>
+    </svg>`;
+    zoomBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      focusTile(idx);
+      showPreview();
+    });
+    wrap.appendChild(zoomBtn);
   }
 
   // Loading overlay
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'tile-loading';
-  const spinner = document.createElement('div');
-  spinner.className = 'spinner';
-  loadingDiv.appendChild(spinner);
+  loadingDiv.appendChild(Object.assign(document.createElement('div'), { className: 'spinner' }));
   wrap.appendChild(loadingDiv);
 
   const footer = document.createElement('div');
   footer.className = 'tile-footer';
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'tile-name';
-  nameSpan.textContent = filter?.name ?? tile.filterId;
-  const presetSpan = document.createElement('span');
-  presetSpan.className = 'tile-preset';
-  presetSpan.textContent = tile.presetName;
-  footer.appendChild(nameSpan);
-  footer.appendChild(presetSpan);
+  footer.appendChild(Object.assign(document.createElement('span'), {
+    className: 'tile-name', textContent: filter?.name ?? tile.filterId,
+  }));
+  footer.appendChild(Object.assign(document.createElement('span'), {
+    className: 'tile-preset', textContent: tile.presetName,
+  }));
 
   el.appendChild(wrap);
   el.appendChild(footer);
 
-  footer.addEventListener('click', (e) => { e.stopPropagation(); focusTile(idx); });
-  if (!filter?.meta) {
-    wrap.style.cursor = 'zoom-in';
-    wrap.addEventListener('click', (e) => {
-      e.stopPropagation();
-      focusTile(idx);
-      showPreview();
-    });
-  } else {
-    wrap.addEventListener('click', (e) => { e.stopPropagation(); focusTile(idx); });
-  }
-  el.addEventListener('focus', () => { state.focusedTileIdx = idx; el.classList.add('focused'); });
-  el.addEventListener('blur', () => el.classList.remove('focused'));
+  // Click image area → open properties panel
+  wrap.style.cursor = 'pointer';
+  wrap.addEventListener('click', e => { e.stopPropagation(); focusTile(idx); openPanel(idx); });
+  footer.addEventListener('click', e => { e.stopPropagation(); focusTile(idx); openPanel(idx); });
+
+  el.addEventListener('focus',   () => { state.focusedTileIdx = idx; el.classList.add('focused'); });
+  el.addEventListener('blur',    () => el.classList.remove('focused'));
   el.addEventListener('keydown', handleTileKeydown);
 
   return el;
@@ -208,36 +362,29 @@ function buildTileEl(tile, idx) {
 async function runTile(idx) {
   const tile = state.tiles[idx];
   if (!tile) return;
-
   const tileEl = tileGrid.children[idx];
   if (!tileEl) return;
 
-  const filter = FILTERS[tile.filterId];
+  const filter     = FILTERS[tile.filterId];
   const loadingDiv = tileEl.querySelector('.tile-loading');
   if (loadingDiv) loadingDiv.style.display = 'flex';
   tile.loading = true;
 
-  // Yield to browser so spinner paints before blocking computation
+  // Yield so the spinner paints before synchronous filter computation
   await new Promise(r => setTimeout(r, 0));
 
   try {
     const result = await runFilter(
-      tile.filterId,
-      state.baseImageData,
-      tile.params,
-      state.baseCanvas,
-      state.rawFile,
+      tile.filterId, state.baseImageData, tile.params, state.baseCanvas, state.rawFile,
     );
 
     tile.resultImageData = result;
     tile.loading = false;
     updateMemoryInfo();
+    updateExportBtn();
 
-    if (filter?.meta) {
-      renderMetaTile(tileEl, result);
-    } else {
-      renderImageTile(tileEl, result);
-    }
+    if (filter?.meta) renderMetaTile(tileEl, result);
+    else              renderImageTile(tileEl, result);
   } catch (err) {
     console.error(`Filter ${tile.filterId} failed:`, err);
     tile.loading = false;
@@ -276,17 +423,12 @@ function renderMetaTile(tileEl, result) {
 }
 
 function buildMetaLine(label, detail, severity) {
-  const line = document.createElement('div');
+  const line    = document.createElement('div');
   line.className = 'meta-line' + (severity ? ' sev-' + severity : '');
-  const keySpan = document.createElement('span');
-  keySpan.className = 'meta-key';
-  keySpan.textContent = label;
-  const sep = document.createTextNode(': ');
-  const valSpan = document.createElement('span');
-  valSpan.className = 'meta-val';
-  valSpan.textContent = detail;
+  const keySpan = Object.assign(document.createElement('span'), { className: 'meta-key', textContent: label });
+  const valSpan = Object.assign(document.createElement('span'), { className: 'meta-val', textContent: detail });
   line.appendChild(keySpan);
-  line.appendChild(sep);
+  line.appendChild(document.createTextNode(': '));
   line.appendChild(valSpan);
   return line;
 }
@@ -311,12 +453,28 @@ function updateMemoryInfo() {
 }
 
 // =====================================================================
+// Cross-panel focus helpers
+// =====================================================================
+function focusHistory() {
+  const first = historyList.querySelector('.history-entry');
+  (first ?? dropZone).focus();
+}
+
+function focusPanel() {
+  promoteBtn.focus();
+}
+
+function focusMenubar() {
+  const first = tabBar.querySelector('.tab-btn') ?? menubar.querySelector('.menu-btn');
+  first?.focus();
+}
+
+// =====================================================================
 // Focus / keyboard
 // =====================================================================
 function focusTile(idx) {
   const tileEl = tileGrid.children[idx];
   if (!tileEl) return;
-  // Remove focused class from others
   tileGrid.querySelectorAll('.tile.focused').forEach(el => el.classList.remove('focused'));
   tileEl.classList.add('focused');
   tileEl.focus({ preventScroll: false });
@@ -325,44 +483,68 @@ function focusTile(idx) {
 }
 
 function handleTileKeydown(e) {
-  const idx = parseInt(e.currentTarget.dataset.idx, 10);
+  const idx  = parseInt(e.currentTarget.dataset.idx, 10);
   const cols = getGridCols();
 
   switch (e.key) {
-    case 'ArrowRight': e.preventDefault(); focusTile(Math.min(idx + 1, state.tiles.length - 1)); break;
-    case 'ArrowLeft':  e.preventDefault(); focusTile(Math.max(idx - 1, 0)); break;
-    case 'ArrowDown':  e.preventDefault(); focusTile(Math.min(idx + cols, state.tiles.length - 1)); break;
-    case 'ArrowUp':    e.preventDefault(); focusTile(Math.max(idx - cols, 0)); break;
+    case 'ArrowRight':
+      e.preventDefault();
+      if (idx % cols === cols - 1 || idx === state.tiles.length - 1) {
+        if (state.panelOpen) focusPanel();
+      } else {
+        focusTile(idx + 1);
+      }
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      if (idx % cols === 0) focusHistory();
+      else focusTile(idx - 1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      focusTile(Math.min(idx + cols, state.tiles.length - 1));
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if (idx < cols) focusMenubar();
+      else focusTile(idx - cols);
+      break;
     case 'Enter':
       e.preventDefault();
-      if (!state.panelOpen || state.panelTileIdx !== idx) {
-        openPanel(idx);
-      } else {
-        // Panel already open for this tile — Enter = promote
-        promoteCurrentTile();
-      }
+      if (!state.panelOpen || state.panelTileIdx !== idx) openPanel(idx);
+      else promoteCurrentTile();
       break;
     case 'Escape':
       e.preventDefault();
-      if (state.panelOpen) {
-        closePanelUI();
-        focusTile(idx);
-      } else {
-        e.currentTarget.blur();
-        state.focusedTileIdx = -1;
-      }
+      if (state.panelOpen) { closePanelUI(); focusTile(idx); }
+      else { e.currentTarget.blur(); state.focusedTileIdx = -1; updateKeybindBar(); }
       break;
   }
 }
 
 function getGridCols() {
-  const style = getComputedStyle(tileGrid);
-  const tpl = style.gridTemplateColumns;
-  return tpl.split(' ').length;
+  return getComputedStyle(tileGrid).gridTemplateColumns.split(' ').length;
 }
 
 // Global keyboard shortcuts
 document.addEventListener('keydown', e => {
+  // Default arrow key with no tile actually focused → select first tile
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)
+    && state.baseImageData
+    && !state.panelOpen
+    && !preview.visible
+    && !historyPanel.contains(document.activeElement)
+    && !paramPanel.contains(document.activeElement)
+    && !menubar.contains(document.activeElement)) {
+    const tileHasFocus = state.focusedTileIdx >= 0
+      && tileGrid.children[state.focusedTileIdx] === document.activeElement;
+    if (!tileHasFocus) {
+      e.preventDefault();
+      focusTile(0);
+      return;
+    }
+  }
+
   // Ctrl+1–9 — switch tabs
   if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
     const i = parseInt(e.key, 10) - 1;
@@ -373,6 +555,15 @@ document.addEventListener('keydown', e => {
       renderGrid();
     }
   }
+
+  // Zoom
+  if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); adjustZoom(+1); }
+  if (e.ctrlKey && e.key === '-')                    { e.preventDefault(); adjustZoom(-1); }
+  if (e.ctrlKey && e.key === '0')                    { e.preventDefault(); setZoom(3); }
+
+  // Undo / Redo
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoHistory(); }
+  if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redoHistory(); }
 });
 
 // =====================================================================
@@ -391,7 +582,6 @@ function openPanel(idx) {
   updateKeybindBar();
 
   paramPanel.classList.remove('panel-hidden');
-  paramTitle.textContent = filter.name + (filter.slow ? '<span class="slow-badge">slow</span>' : '');
   if (filter.slow) {
     paramTitle.innerHTML = filter.name + ' <span class="slow-badge">slow</span>';
   } else {
@@ -401,8 +591,7 @@ function openPanel(idx) {
   renderPresetBar(filter, tile.presetName);
   renderParamControls(filter, state.panelParams);
   updatePromoteBtn();
-
-  // Auto-focus promote button
+  updateExportBtn();
   promoteBtn.focus();
 }
 
@@ -410,33 +599,35 @@ function closePanelUI() {
   state.panelOpen    = false;
   state.panelTileIdx = -1;
   paramPanel.classList.add('panel-hidden');
-  presetBar.innerHTML = '';
+  presetBar.innerHTML  = '';
   paramCtrls.innerHTML = '';
   updateKeybindBar();
 }
 
-function focusFirstParamControl() {
-  const first = presetBar.querySelector('.preset-pill') ??
-                paramCtrls.querySelector('input, select');
-  first?.focus();
+function focusFirstControl() {
+  paramCtrls.querySelector('input[type="range"], select')?.focus();
 }
 
-function focusLastParamControl() {
-  const allControls = [
-    ...presetBar.querySelectorAll('.preset-pill'),
-    ...paramCtrls.querySelectorAll('input, select'),
-  ];
-  allControls.at(-1)?.focus();
+function focusLastControl() {
+  const all = [...paramCtrls.querySelectorAll('input[type="range"], select')];
+  all.at(-1)?.focus();
 }
 
 paramClose.addEventListener('click', () => {
-  const prevTile = state.panelTileIdx;
+  const prev = state.panelTileIdx;
   closePanelUI();
-  if (prevTile >= 0) focusTile(prevTile);
+  if (prev >= 0) focusTile(prev);
 });
 
 function renderPresetBar(filter, activePresetName) {
   presetBar.innerHTML = '';
+  if (!filter.presets.length) return;
+
+  const title = document.createElement('div');
+  title.className = 'preset-bar-title';
+  title.textContent = 'Presets';
+  presetBar.appendChild(title);
+
   filter.presets.forEach(preset => {
     const pill = document.createElement('button');
     pill.className = 'preset-pill' + (preset.name === activePresetName ? ' active' : '');
@@ -450,18 +641,19 @@ function renderPresetBar(filter, activePresetName) {
     });
     pill.addEventListener('keydown', e => {
       const pills = [...presetBar.querySelectorAll('.preset-pill')];
-      const cur = pills.indexOf(e.currentTarget);
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      const cur   = pills.indexOf(e.currentTarget);
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        if (cur > 0) pills[cur - 1].focus();
-        else promoteBtn.focus();           // wrap back to Promote
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        if (cur > 0) pills[cur - 1].focus(); else promoteBtn.focus();
+      } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        if (cur < pills.length - 1) {
-          pills[cur + 1].focus();
-        } else {
-          focusFirstParamControl();        // last pill → first param
-        }
+        if (cur < pills.length - 1) pills[cur + 1].focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        promoteBtn.focus();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusFirstControl();
       }
     });
     presetBar.appendChild(pill);
@@ -481,19 +673,20 @@ function renderParamControls(filter, params) {
       labelRow.className = 'param-label';
       const labelText = document.createElement('span');
       labelText.textContent = schema.label;
-      const valSpan = document.createElement('span');
-      valSpan.className = 'param-value';
-      valSpan.textContent = params[schema.id] ?? schema.min;
+      const valSpan = Object.assign(document.createElement('span'), {
+        className: 'param-value',
+        textContent: params[schema.id] ?? schema.min,
+      });
       labelRow.appendChild(labelText);
       labelRow.appendChild(valSpan);
 
       const slider = document.createElement('input');
-      slider.type  = 'range';
+      slider.type      = 'range';
       slider.className = 'param-slider';
-      slider.min   = schema.min;
-      slider.max   = schema.max;
-      slider.step  = schema.step ?? 1;
-      slider.value = params[schema.id] ?? schema.min;
+      slider.min       = schema.min;
+      slider.max       = schema.max;
+      slider.step      = schema.step ?? 1;
+      slider.value     = params[schema.id] ?? schema.min;
       slider.dataset.id = schema.id;
 
       slider.addEventListener('input', () => {
@@ -501,20 +694,17 @@ function renderParamControls(filter, params) {
         params[schema.id] = v;
         valSpan.textContent = v;
         markDirty();
-        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) {
-          applyParamPreview();
-        }
+        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) applyParamPreview();
       });
 
       group.appendChild(labelRow);
       group.appendChild(slider);
     } else if (schema.type === 'select') {
-      const labelEl = document.createElement('div');
-      labelEl.className = 'param-label';
-      labelEl.textContent = schema.label;
-
+      const labelEl = Object.assign(document.createElement('div'), {
+        className: 'param-label', textContent: schema.label,
+      });
       const sel = document.createElement('select');
-      sel.style.cssText = 'width:100%;background:var(--bg-mid);color:var(--text-primary);border:1px solid var(--border-light);border-radius:3px;padding:4px 6px;font-size:11px;outline:none;';
+      sel.className = 'param-select';
       schema.options?.forEach(opt => {
         const o = document.createElement('option');
         o.value = opt.value;
@@ -525,11 +715,14 @@ function renderParamControls(filter, params) {
       sel.addEventListener('change', () => {
         params[schema.id] = sel.value;
         markDirty();
-        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) {
-          applyParamPreview();
-        }
+        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) applyParamPreview();
       });
-
+      sel.addEventListener('keydown', e => {
+        // Block left/right from cycling options
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
+        // Enter opens the native dropdown
+        if (e.key === 'Enter') { e.preventDefault(); sel.click(); }
+      });
       group.appendChild(labelEl);
       group.appendChild(sel);
     }
@@ -557,6 +750,11 @@ function updatePromoteBtn() {
   }
 }
 
+function updateExportBtn() {
+  const tile = state.panelTileIdx >= 0 ? state.tiles[state.panelTileIdx] : null;
+  exportTileBtn.disabled = !tile?.resultImageData || !!FILTERS[tile.filterId]?.meta;
+}
+
 // Live preview for fast filters
 async function applyParamPreview() {
   const idx = state.panelTileIdx;
@@ -572,28 +770,45 @@ async function applyParamPreview() {
 applyBtn.addEventListener('click', async () => {
   const idx = state.panelTileIdx;
   if (idx < 0) return;
-  const tile = state.tiles[idx];
-  tile.params = { ...state.panelParams };
+  state.tiles[idx].params = { ...state.panelParams };
   await runTile(idx);
   state.panelDirty = true;
   updatePromoteBtn();
 });
 
-// Arrow nav from Promote/Apply buttons down into the panel controls
+// Export tile
+exportTileBtn.addEventListener('click', () => {
+  const tile = state.tiles[state.panelTileIdx];
+  if (!tile?.resultImageData || FILTERS[tile.filterId]?.meta) return;
+  const tmp = document.createElement('canvas');
+  tmp.width  = tile.resultImageData.width;
+  tmp.height = tile.resultImageData.height;
+  tmp.getContext('2d').putImageData(tile.resultImageData, 0, 0);
+  const filter   = FILTERS[tile.filterId];
+  const safeName = `${filter?.name ?? tile.filterId}-${tile.presetName ?? ''}`
+    .replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+  tmp.toBlob(blob => downloadBlob(blob, `${safeName}.png`), 'image/png');
+});
+
+// Arrow nav from Promote/Apply buttons into panel controls
 [promoteBtn, applyBtn].forEach(btn => {
   btn.addEventListener('keydown', e => {
     if (!state.panelOpen) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      focusFirstParamControl();
+      const pills = [...presetBar.querySelectorAll('.preset-pill')];
+      if (pills.length) pills[0].focus(); else focusFirstControl();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      focusLastParamControl();
+      focusLastControl();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (state.panelTileIdx >= 0) focusTile(state.panelTileIdx);
     }
   });
 });
 
-// Arrow nav on param inputs: Up from first control → last preset pill / Promote
+// Arrow nav within param controls
 paramCtrls.addEventListener('keydown', e => {
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   const controls = [...paramCtrls.querySelectorAll('input[type="range"], select')];
@@ -601,14 +816,12 @@ paramCtrls.addEventListener('keydown', e => {
   if (cur === -1) return;
   if (e.key === 'ArrowUp' && cur === 0) {
     e.preventDefault();
-    // Jump to last preset pill, or Promote if no presets
     const pills = [...presetBar.querySelectorAll('.preset-pill')];
     (pills.at(-1) ?? promoteBtn)?.focus();
   } else if (e.key === 'ArrowDown' && cur === controls.length - 1) {
     e.preventDefault();
-    promoteBtn.focus();                    // wrap back to Promote
+    promoteBtn.focus();
   }
-  // For range inputs, let browser handle Left/Right; Up/Down we intercept only at edges
 });
 
 // =====================================================================
@@ -619,30 +832,19 @@ promoteBtn.addEventListener('click', () => promoteCurrentTile());
 function promoteCurrentTile() {
   const idx = state.panelTileIdx;
   if (idx < 0) return;
-  const tile = state.tiles[idx];
+  const tile   = state.tiles[idx];
   const filter = FILTERS[tile.filterId];
-
-  // For slow/dirty filters, apply first if not yet applied
   if (filter?.slow && state.panelDirty) {
-    const doIt = async () => {
-      tile.params = { ...state.panelParams };
-      await runTile(idx);
-      promote(idx);
-    };
-    doIt();
+    (async () => { tile.params = { ...state.panelParams }; await runTile(idx); promote(idx); })();
     return;
   }
-
   promote(idx);
 }
 
 function promote(idx) {
-  const tile = state.tiles[idx];
-  if (!tile?.resultImageData) return;
-
-  // Don't promote metadata tiles
+  const tile   = state.tiles[idx];
   const filter = FILTERS[tile.filterId];
-  if (filter?.meta) return;
+  if (!tile?.resultImageData || filter?.meta) return;
 
   const newCanvas = document.createElement('canvas');
   newCanvas.width  = tile.resultImageData.width;
@@ -651,9 +853,7 @@ function promote(idx) {
 
   state.baseCanvas    = newCanvas;
   state.baseImageData = tile.resultImageData;
-
-  // Truncate history forward and push new entry
-  state.history = state.history.slice(0, state.activeHistoryIdx + 1);
+  state.history       = state.history.slice(0, state.activeHistoryIdx + 1);
   state.history.push({
     canvas:     newCanvas,
     filterId:   tile.filterId,
@@ -668,12 +868,29 @@ function promote(idx) {
 }
 
 // =====================================================================
-// History
+// History + Undo / Redo
 // =====================================================================
+function undoHistory() {
+  if (state.activeHistoryIdx > 0) restoreHistory(state.activeHistoryIdx - 1);
+}
+
+function redoHistory() {
+  if (state.activeHistoryIdx < state.history.length - 1) restoreHistory(state.activeHistoryIdx + 1);
+}
+
+function updateUndoRedoButtons() {
+  undoBtn.disabled = state.activeHistoryIdx <= 0;
+  redoBtn.disabled = state.activeHistoryIdx >= state.history.length - 1;
+}
+
+undoBtn.addEventListener('click', undoHistory);
+redoBtn.addEventListener('click', redoHistory);
+
 function renderHistory() {
   historyList.innerHTML = '';
   if (!state.history.length) {
-    historyList.innerHTML = '<div class="history-empty">No history</div>';
+    historyList.innerHTML = '<div class="history-empty">No image loaded</div>';
+    updateUndoRedoButtons();
     return;
   }
 
@@ -681,43 +898,41 @@ function renderHistory() {
     const el = document.createElement('div');
     el.className = 'history-entry' + (i === state.activeHistoryIdx ? ' active' : '');
 
-    // Thumbnail — fit within 36×36 preserving aspect ratio
     const thumb = document.createElement('canvas');
     thumb.className = 'history-thumb';
-    thumb.width  = 36;
-    thumb.height = 36;
-    const tctx = thumb.getContext('2d');
+    thumb.width = 36; thumb.height = 36;
+    const tctx  = thumb.getContext('2d');
     const sw = entry.canvas.width, sh = entry.canvas.height;
     const scale = Math.min(36 / sw, 36 / sh);
     const dw = sw * scale, dh = sh * scale;
-    const dx = (36 - dw) / 2, dy = (36 - dh) / 2;
-    tctx.drawImage(entry.canvas, dx, dy, dw, dh);
+    tctx.drawImage(entry.canvas, (36 - dw) / 2, (36 - dh) / 2, dw, dh);
 
-    const info = document.createElement('div');
+    const info  = document.createElement('div');
     info.className = 'history-entry-info';
-    const label = document.createElement('div');
-    label.className = 'history-entry-label';
-    label.textContent = entry.label;
-    const sub = document.createElement('div');
-    sub.className = 'history-entry-sub';
-    sub.textContent = `Step ${i + 1}`;
-    info.appendChild(label);
-    info.appendChild(sub);
+    info.appendChild(Object.assign(document.createElement('div'), {
+      className: 'history-entry-label', textContent: entry.label,
+    }));
+    info.appendChild(Object.assign(document.createElement('div'), {
+      className: 'history-entry-sub', textContent: `Step ${i + 1}`,
+    }));
 
     el.appendChild(thumb);
     el.appendChild(info);
-
     el.tabIndex = 0;
+
     el.addEventListener('click', () => restoreHistory(i));
     el.addEventListener('keydown', e => {
       const entries = [...historyList.querySelectorAll('.history-entry')];
-      const cur = entries.indexOf(e.currentTarget);
+      const cur     = entries.indexOf(e.currentTarget);
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         entries[Math.max(0, cur - 1)]?.focus();
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         entries[Math.min(entries.length - 1, cur + 1)]?.focus();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        focusTile(state.focusedTileIdx >= 0 ? state.focusedTileIdx : 0);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         restoreHistory(i);
@@ -726,9 +941,8 @@ function renderHistory() {
     historyList.appendChild(el);
   });
 
-  // Scroll to active
-  const active = historyList.querySelector('.history-entry.active');
-  active?.scrollIntoView({ block: 'nearest' });
+  historyList.querySelector('.history-entry.active')?.scrollIntoView({ block: 'nearest' });
+  updateUndoRedoButtons();
 }
 
 function restoreHistory(idx) {
@@ -736,26 +950,27 @@ function restoreHistory(idx) {
   if (!entry) return;
   state.activeHistoryIdx = idx;
   state.baseCanvas    = entry.canvas;
-  state.baseImageData = entry.canvas.getContext('2d').getImageData(0, 0, entry.canvas.width, entry.canvas.height);
+  state.baseImageData = entry.canvas.getContext('2d').getImageData(
+    0, 0, entry.canvas.width, entry.canvas.height,
+  );
   renderHistory();
   renderGrid();
 }
 
 // =====================================================================
-// Large image preview (Space key — hold or tap-toggle)
+// Large image preview (Space — hold or tap-toggle)
 // =====================================================================
 const preview = {
-  visible: false,
-  holdMode: false,    // true = showing due to hold, close on keyup
+  visible:   false,
+  holdMode:  false,
   holdTimer: null,
-  HOLD_MS: 180,       // ms to distinguish hold from tap
+  HOLD_MS:   180,
 };
 
 function showPreview() {
   if (!state.baseImageData) return;
 
-  // Show focused tile result if available, otherwise base image
-  const idx = state.focusedTileIdx;
+  const idx  = state.focusedTileIdx;
   const tile = idx >= 0 ? state.tiles[idx] : null;
   const useFiltered = tile && tile.resultImageData && !FILTERS[tile.filterId]?.meta;
 
@@ -768,7 +983,8 @@ function showPreview() {
   previewCanvas.height = imgData.height;
   previewCanvas.getContext('2d').putImageData(imgData, 0, 0);
   previewLabel.textContent = label;
-  previewDims.innerHTML = `${imgData.width} × ${imgData.height} &nbsp;·&nbsp; <kbd>Space</kbd> or <kbd>Esc</kbd> to close`;
+  previewDims.innerHTML =
+    `${imgData.width} × ${imgData.height} &nbsp;·&nbsp; <kbd>Space</kbd> or <kbd>Esc</kbd> to close`;
 
   previewOverlay.classList.remove('hidden');
   previewClose.focus();
@@ -785,13 +1001,11 @@ function hidePreview() {
 
 previewClose.addEventListener('click', hidePreview);
 previewOverlay.addEventListener('click', e => {
-  // Click outside canvas closes
   if (e.target === previewOverlay || e.target.classList.contains('preview-canvas-wrap')) hidePreview();
 });
 
-// Space key — hold-vs-tap detection
 function isInteractiveTarget(el) {
-  return ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(el.tagName);
+  return ['INPUT','SELECT','TEXTAREA','BUTTON'].includes(el.tagName);
 }
 
 document.addEventListener('keydown', e => {
@@ -807,75 +1021,67 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keyup', e => {
   if (e.key === ' ') {
     clearTimeout(preview.holdTimer);
-    if (preview.holdMode) {
-      // Release hold — close
-      hidePreview();
-      preview.holdMode = false;
-    } else {
-      // Tap — toggle
-      if (preview.visible) hidePreview();
-      else showPreview();
-    }
+    if (preview.holdMode) { hidePreview(); preview.holdMode = false; }
+    else { if (preview.visible) hidePreview(); else showPreview(); }
   }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && preview.visible) { e.preventDefault(); hidePreview(); }
 });
 
 // =====================================================================
 // Keybind bar
 // =====================================================================
-function kb(key, action) {
-  return `<span class="kb-item"><span class="kb-key">${key}</span><span class="kb-action">${action}</span></span>`;
+function kb(action, keys) {
+  // keys: array of strings — '+' items render as separator, others as <kbd>
+  const keysHtml = keys.map(k =>
+    k === '+' ? '<span class="kb-sep">+</span>' : `<kbd class="kb-key">${escHtml(k)}</kbd>`,
+  ).join('');
+  return `<span class="kb-item">${keysHtml}<span class="kb-action">${escHtml(action)}</span></span>`;
 }
 
 function updateKeybindBar() {
   if (preview.visible) {
     keybindBar.innerHTML =
-      kb('Space', 'Close preview') +
-      kb('Esc', 'Close preview');
+      kb('Close preview', ['Space']) +
+      kb('Close preview', ['Esc']);
     return;
   }
 
   if (!state.baseImageData) {
-    keybindBar.innerHTML =
-      kb('Drop / Browse', 'Load image');
+    keybindBar.innerHTML = kb('Load image', ['Drop / Browse']);
     return;
   }
 
   if (state.panelOpen) {
     keybindBar.innerHTML =
-      kb('Enter', 'Promote') +
-      kb('Tab', 'Parameters') +
-      kb('Space', 'Preview') +
-      kb('Esc', 'Close panel');
+      kb('Promote',     ['Enter']) +
+      kb('Parameters',  ['Tab']) +
+      kb('Preview',     ['Space']) +
+      kb('Close panel', ['Esc']);
     return;
   }
 
   if (state.focusedTileIdx >= 0) {
     keybindBar.innerHTML =
-      kb('↑↓←→', 'Navigate') +
-      kb('Enter', 'Open filter') +
-      kb('Space', 'Preview') +
-      kb('Esc', 'Deselect') +
-      kb('Ctrl+1–7', 'Switch tab');
+      kb('Navigate',    ['↑','↓','←','→']) +
+      kb('Open filter', ['Enter']) +
+      kb('Preview',     ['Space']) +
+      kb('Deselect',    ['Esc']) +
+      kb('Switch tab',  ['Ctrl','+','1–7']);
     return;
   }
 
-  // Image loaded, nothing focused
   keybindBar.innerHTML =
-    kb('↑↓←→', 'Navigate tiles') +
-    kb('Space', 'Preview') +
-    kb('Ctrl+1–7', 'Switch tab');
+    kb('Navigate tiles', ['↑','↓','←','→']) +
+    kb('Preview',        ['Space']) +
+    kb('Switch tab',     ['Ctrl','+','1–7']);
 }
-
-// Also handle Escape for preview when overlay is open
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && preview.visible) {
-    e.preventDefault();
-    hidePreview();
-  }
-});
 
 // =====================================================================
 // Init
 // =====================================================================
 renderTabs();
+setZoom(3);
 updateKeybindBar();
