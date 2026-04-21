@@ -7,6 +7,7 @@ import { labFilter }        from './lab.js';
 import { frequencyFilter }  from './frequency.js';
 import { cloneFilter }      from './clone.js';
 import { metadataFilter }   from './metadata.js';
+import { bitplaneFilter }   from './bitplane.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -18,6 +19,7 @@ export const FILTERS = {
   frequency: frequencyFilter,
   clone:     cloneFilter,
   metadata:  metadataFilter,
+  bitplane:  bitplaneFilter,
 };
 
 /**
