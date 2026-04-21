@@ -10,6 +10,7 @@ import { metadataFilter }   from './metadata.js';
 import { bitplaneFilter }   from './bitplane.js';
 import { pcaFilter }        from './pca.js';
 import { waveletFilter }    from './wavelet.js';
+import { histogramFilter }  from './histogram.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -24,6 +25,7 @@ export const FILTERS = {
   bitplane:  bitplaneFilter,
   pca:       pcaFilter,
   wavelet:   waveletFilter,
+  histogram: histogramFilter,
 };
 
 /**
