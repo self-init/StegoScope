@@ -12,6 +12,7 @@ import { pcaFilter }        from './pca.js';
 import { waveletFilter }    from './wavelet.js';
 import { histogramFilter }  from './histogram.js';
 import { jpegGhostFilter }  from './jpeg-ghost.js';
+import { thumbnailFilter }  from './thumbnail.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -28,6 +29,7 @@ export const FILTERS = {
   wavelet:   waveletFilter,
   histogram: histogramFilter,
   'jpeg-ghost': jpegGhostFilter,
+  thumbnail: thumbnailFilter,
 };
 
 /**
