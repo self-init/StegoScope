@@ -15,6 +15,7 @@ import { jpegGhostFilter }  from './jpeg-ghost.js';
 import { thumbnailFilter }  from './thumbnail.js';
 import { gpsFilter }        from './gps.js';
 import { quantizationFilter } from './quantization.js';
+import { stringsFilter }    from './strings.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -34,6 +35,7 @@ export const FILTERS = {
   thumbnail: thumbnailFilter,
   gps:       gpsFilter,
   quantization: quantizationFilter,
+  strings:   stringsFilter,
 };
 
 /**
