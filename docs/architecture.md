@@ -9,7 +9,17 @@ Browser-based image forensics tool for CTF players and forensics analysts. Drop 
 ```
 index.html          Shell — layout, DOM structure, zero inline JS
 css/style.css       Dark theme (Photoshop/Photopea-inspired)
-js/app.js           All application state, rendering, keyboard handling
+js/app.js           Central orchestrator — keyboard shortcuts, menu, init wiring
+js/app/
+  state.js          State object + helper functions
+  cache.js          imageDataChecksum, makeCacheKey, runTile
+  zoom.js           Zoom controls
+  grid.js           Tile grid rendering + tile DOM construction
+  keyboard.js        Tab bar keyboard navigation
+  history.js        Undo/redo + history list rendering
+  panel.js          Parameter panel + presets + promote
+  preview.js         Preview overlay + text search
+  menu.js           Menu bar + dropdown rendering
 js/presets.js       Built-in grid tab definitions (8 tabs)
 js/filters/
   index.js          Filter registry + getPresetParams()
@@ -18,7 +28,7 @@ js/filters/
     jpeg.js         JPEG round-trip utility (OffscreenCanvas-based, worker-safe)
   [30 individual filter files]
 js/workers/
-  pool.js           Worker pool — FilterWorkerPool class
+  pool.js           Worker pool — FilterWorkerPool class + getWorkerPool() singleton
 docs/               User-facing documentation
 ```
 
@@ -28,7 +38,7 @@ docs/               User-facing documentation
 
 ## State Model
 
-All mutable state lives in a single `state` object in `app.js`:
+All mutable state lives in a single `state` object in `js/app/state.js`:
 
 | Key | Type | Purpose |
 |-----|------|---------|
@@ -177,33 +187,35 @@ Every filter runs in a Web Worker. No filter runs on the main thread.
 ```
 User drops image
        ↓
-loadImageFile()
+loadImageFile()  [app.js]
   → FileReader + createObjectURL → Image → draw to baseCanvas
   → getImageData() → baseImageData
   → history = [{ canvas, label: 'Original' }]
-  → workerPool.start() — spawns hardwareConcurrency workers
+  → getWorkerPool().start() — spawns hardwareConcurrency workers
        ↓
-renderGrid()
+renderGrid()  [grid.js → app.js via _onAction]
   → for each tile in current tab:
        buildTileEl()    → DOM: canvas div + spinner + footer
-       runTile(idx)
+       runTile(idx)     [app.js → cache.js]
          → get rawFile as ArrayBuffer (transferable, zero-copy)
-         → workerPool.dispatch({ filterId, imageData, params, rawFile })
+         → getWorkerPool().dispatch({ filterId, imageData, params, rawFile })
            → worker picks task, runs filter
            → filter.apply() → ImageData | { text } | { entries }
            → result posted back to main thread
-         → renderImageTile() or renderMetaTile()
+         → renderImageTile() [grid.js] or renderMetaTile() [grid.js]
        ↓
-click tile → focusTile(idx) + openPanel(idx)
+click tile → focusTile(idx) + openPanel(idx)  [app.js → panel.js]
   → panel shows preset pills + param controls
-  → slider drag → applyParamPreview() → live re-run via worker pool
+  → slider drag → applyParamPreview() [panel.js → app.js → cache.js]
   ↓
-Enter on focused tile → promote(idx):
+Enter on focused tile → promote(idx)  [panel.js → app.js]
   → new canvas from tile.resultImageData
   → push to history[]
   → baseImageData = tile output
   → re-render grid
 ```
+
+**Cross-module callback pattern:** Each feature module (`grid`, `history`, `panel`, `preview`, `menu`) exposes `onAction(fn)` to register the central `handleGridAction` dispatcher. All DOM events within a module call `_onAction?.('actionName', ...args)` to communicate back to app.js.
 
 ---
 

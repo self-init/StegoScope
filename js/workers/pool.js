@@ -10,6 +10,19 @@
 
 const WORKER_PATH = './js/filters/worker.js';
 
+let _instance = null;
+export function getWorkerPool() {
+  if (!_instance) {
+    _instance = new FilterWorkerPool();
+    _instance.start();
+  }
+  return _instance;
+}
+
+export function prefetchTab(tabFilterIds) {
+  getWorkerPool().prefetch(tabFilterIds);
+}
+
 export class FilterWorkerPool {
   constructor() {
     this._workers = [];
