@@ -4,7 +4,6 @@
 export const hsvFilter = {
   id: 'hsv',
   name: 'HSV',
-  slow: false,
   presets: [
     { name: 'Hue',        params: { channel: 'h' } },
     { name: 'Saturation', params: { channel: 's' } },

@@ -7,7 +7,6 @@ import { readBuffer, parseExif, filterTagsByMode } from './util/exif.js';
 export const metadataFilter = {
   id: 'metadata',
   name: 'EXIF / Metadata',
-  slow: false,
   meta: true,
   presets: [
     { name: 'All',    params: { mode: 'all' } },

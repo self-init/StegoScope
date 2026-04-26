@@ -13,8 +13,6 @@ function byteColor(b) {
 export const byteHistogramFilter = {
   id: 'byte-histogram',
   name: 'Byte Histogram',
-  slow: false,
-  meta: false,
   presets: [
     { name: 'File Bytes',   params: { source: 'file'   } },
     { name: 'Pixel Luma',   params: { source: 'pixels' } },

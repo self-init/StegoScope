@@ -4,7 +4,6 @@
 export const gradientFilter = {
   id: 'gradient',
   name: 'Gradient',
-  slow: false,
   presets: [
     { name: 'Both',       params: { direction: 'both',       scale: 3 } },
     { name: 'Horizontal', params: { direction: 'horizontal', scale: 3 } },

@@ -6,7 +6,6 @@
 export const bitplaneFilter = {
   id: 'bitplane',
   name: 'Bit Plane',
-  slow: false,
   presets: [
     { name: 'Alpha Bit 0', params: { channel: 'A',    bit: 0 } },
     { name: 'Red Bit 0',   params: { channel: 'R',    bit: 0 } },

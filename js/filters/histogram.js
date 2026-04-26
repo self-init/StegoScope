@@ -4,7 +4,6 @@
 export const histogramFilter = {
   id: 'histogram',
   name: 'Histogram',
-  slow: false,
   presets: [
     { name: 'Graph All',     params: { mode: 'graph',    channel: 'All'  } },
     { name: 'Stretch Luma',  params: { mode: 'stretch',  channel: 'Luma' } },

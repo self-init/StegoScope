@@ -47,8 +47,6 @@ function applyColormap(stops, t) {
 export const colormapFilter = {
   id: 'colormap',
   name: 'False Color',
-  slow: false,
-  meta: false,
   presets: [
     { name: 'Viridis',  params: { colormap: 'viridis', channel: 'luma' } },
     { name: 'Inferno',  params: { colormap: 'inferno', channel: 'luma' } },

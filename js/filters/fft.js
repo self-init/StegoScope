@@ -72,8 +72,6 @@ function fftshift(mag, rows, cols) {
 export const fftFilter = {
   id: 'fft',
   name: 'FFT Spectrum',
-  slow: true,
-  meta: false,
   presets: [
     { name: 'Luma (log mag)',  params: { channel: 'luma', display: 'logmag'  } },
     { name: 'Luma (phase)',    params: { channel: 'luma', display: 'phase'   } },

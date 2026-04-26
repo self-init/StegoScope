@@ -1,18 +1,19 @@
 import { readBuffer, parseExif } from './util/exif.js';
+import { jpegRoundTrip } from './util/jpeg.js';
 
 /**
  * Autodetect — runs forensic heuristics and reports anomalies.
+ * Uses createImageBitmap + OffscreenCanvas for JPEG decode — works in workers.
  */
 export const autodetectFilter = {
   id: 'autodetect',
   name: 'Auto-Detect',
-  slow: true,
   meta: true,
   presets: [{ name: 'All', params: {} }],
   defaultPreset: 'All',
   paramSchema: [],
 
-  async apply(imageData, _params, sourceCanvas, rawFile) {
+  async apply(imageData, _params, _srcCanvas, rawFile) {
     const entries = [];
 
     alphaLsbStego(imageData, entries);
@@ -26,7 +27,6 @@ export const autodetectFilter = {
       trailingBytes(bytes, entries);
       embeddedMagic(bytes, entries);
       dimensionMismatch(buf, imageData, entries);
-      await thumbnailSsim(buf, sourceCanvas, entries);
       await doubleJpegHint(imageData, entries);
     }
 
@@ -114,9 +114,6 @@ function bitplaneEntropy(img, entries) {
 }
 
 // Heuristic 2b: Cross-channel LSB correlation
-// For each channel pair, compute Pearson correlation between bit-0 sequences.
-// Strong correlation (|r| > 0.15) suggests one channel's LSB is locked to
-// another's — classic cross-channel LSB camouflage. Fire hint to try XOR.
 function crossChannelLsbCorrelation(img, entries) {
   const src = img.data;
   const n = img.width * img.height;
@@ -264,7 +261,7 @@ function findSig(bytes, sig, from) {
   return -1;
 }
 
-// Heuristic 5: Double JPEG hint
+// Heuristic 5: Double JPEG hint — using jpegRoundTrip for clean worker-compatible JPEG re-encode
 async function doubleJpegHint(imageData, entries) {
   const sw = Math.min(imageData.width, 256);
   const sh = Math.min(imageData.height, 256);
@@ -273,33 +270,20 @@ async function doubleJpegHint(imageData, entries) {
   const w = Math.max(1, Math.round(imageData.width * scale));
   const h = Math.max(1, Math.round(imageData.height * scale));
 
-  const src = document.createElement('canvas');
-  src.width = w; src.height = h;
-  const srcCtx = src.getContext('2d');
-  const full = document.createElement('canvas');
-  full.width = imageData.width; full.height = imageData.height;
-  full.getContext('2d').putImageData(imageData, 0, 0);
-  srcCtx.drawImage(full, 0, 0, w, h);
-  const srcData = srcCtx.getImageData(0, 0, w, h).data;
+  // Downsample via ImageData copy (CPU-side, fast for 256px)
+  const srcData = downsampleImageData(imageData, w, h);
+  const srcBytes = srcData.data;
 
   const QS = [50, 70, 85, 90];
   const curve = [];
   for (const q of QS) {
-    const blob = await new Promise(r => src.toBlob(r, 'image/jpeg', q / 100));
-    if (!blob) continue;
-    const url = URL.createObjectURL(blob);
-    let img;
-    try { img = await loadImg(url); } catch { URL.revokeObjectURL(url); continue; }
-    URL.revokeObjectURL(url);
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').drawImage(img, 0, 0);
-    const cd = c.getContext('2d').getImageData(0, 0, w, h).data;
+    const reencoded = await jpegRoundTrip(srcData, q);
+    const rc = reencoded.data;
     let sum = 0;
-    for (let i = 0; i < srcData.length; i += 4) {
-      const dr = srcData[i] - cd[i];
-      const dg = srcData[i + 1] - cd[i + 1];
-      const db = srcData[i + 2] - cd[i + 2];
+    for (let i = 0; i < srcBytes.length; i += 4) {
+      const dr = srcBytes[i] - rc[i];
+      const dg = srcBytes[i + 1] - rc[i + 1];
+      const db = srcBytes[i + 2] - rc[i + 2];
       sum += dr*dr + dg*dg + db*db;
     }
     curve.push({ q, mse: sum / (w * h * 3) });
@@ -318,77 +302,7 @@ async function doubleJpegHint(imageData, entries) {
   }
 }
 
-function loadImg(url) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    img.onload  = () => res(img);
-    img.onerror = rej;
-    img.src = url;
-  });
-}
-
-// Heuristic 7: Thumbnail SSIM
-async function thumbnailSsim(buf, sourceCanvas, entries) {
-  const parsed = parseExif(buf);
-  if (parsed.error === 'not-jpeg') return;
-  if (!parsed.thumbnailBytes) return;
-
-  const blob = new Blob([parsed.thumbnailBytes], { type: 'image/jpeg' });
-  const url = URL.createObjectURL(blob);
-  let img;
-  try { img = await loadImg(url); } catch { URL.revokeObjectURL(url); return; }
-  URL.revokeObjectURL(url);
-
-  const tC = document.createElement('canvas');
-  tC.width = img.naturalWidth; tC.height = img.naturalHeight;
-  tC.getContext('2d').drawImage(img, 0, 0);
-  const dC = document.createElement('canvas');
-  dC.width = tC.width; dC.height = tC.height;
-  dC.getContext('2d').drawImage(sourceCanvas, 0, 0, dC.width, dC.height);
-
-  const tData = tC.getContext('2d').getImageData(0, 0, tC.width, tC.height);
-  const dData = dC.getContext('2d').getImageData(0, 0, dC.width, dC.height);
-  const ssim = ssimSimple(tData, dData);
-  if (ssim < 0.85) {
-    entries.push({
-      label:    'Thumbnail mismatch',
-      detail:   `SSIM=${ssim.toFixed(3)} — main differs from embedded thumbnail`,
-      severity: 'alert',
-    });
-  }
-}
-
-function ssimSimple(a, b) {
-  const W = Math.min(a.width, b.width);
-  const H = Math.min(a.height, b.height);
-  const la = luma(a, W, H), lb = luma(b, W, H);
-  const n = W * H;
-  let sA = 0, sB = 0;
-  for (let i = 0; i < n; i++) { sA += la[i]; sB += lb[i]; }
-  const mA = sA / n, mB = sB / n;
-  let vA = 0, vB = 0, cov = 0;
-  for (let i = 0; i < n; i++) {
-    const da = la[i] - mA, db = lb[i] - mB;
-    vA += da*da; vB += db*db; cov += da*db;
-  }
-  vA /= n; vB /= n; cov /= n;
-  const C1 = (0.01 * 255) ** 2, C2 = (0.03 * 255) ** 2;
-  return ((2*mA*mB + C1) * (2*cov + C2)) / ((mA*mA + mB*mB + C1) * (vA + vB + C2));
-}
-
-function luma(img, W, H) {
-  const out = new Float32Array(W * H);
-  const src = img.data;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = (y * img.width + x) * 4;
-      out[y * W + x] = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-    }
-  }
-  return out;
-}
-
-// Heuristic 8: Dimension mismatch
+// Heuristic 6: Dimension mismatch
 function dimensionMismatch(buf, imageData, entries) {
   const parsed = parseExif(buf);
   if (parsed.error === 'not-jpeg') return;
@@ -403,4 +317,26 @@ function dimensionMismatch(buf, imageData, entries) {
       });
     }
   }
+}
+
+// --- helpers ---
+
+function downsampleImageData(src, targetW, targetH) {
+  const srcW = src.width, srcH = src.height;
+  const out = new ImageData(targetW, targetH);
+  const dst = out.data;
+  const scaleX = srcW / targetW, scaleY = srcH / targetH;
+  for (let y = 0; y < targetH; y++) {
+    const sy = Math.min(srcH - 1, (y * scaleY) | 0);
+    for (let x = 0; x < targetW; x++) {
+      const sx = Math.min(srcW - 1, (x * scaleX) | 0);
+      const di = (sy * srcW + sx) * 4;
+      const oi = (y * targetW + x) * 4;
+      dst[oi] = src.data[di];
+      dst[oi + 1] = src.data[di + 1];
+      dst[oi + 2] = src.data[di + 2];
+      dst[oi + 3] = 255;
+    }
+  }
+  return out;
 }

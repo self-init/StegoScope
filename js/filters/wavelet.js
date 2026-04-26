@@ -4,7 +4,6 @@
 export const waveletFilter = {
   id: 'wavelet',
   name: 'Wavelet',
-  slow: false,
   presets: [
     { name: 'Residual L1', params: { level: 1, mode: 'residual', threshold: 8 } },
     { name: 'Residual L2', params: { level: 2, mode: 'residual', threshold: 8 } },

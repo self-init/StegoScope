@@ -61,8 +61,6 @@ function blockEntropy(data, w, h, bx, by, bsz) {
 export const entropyFilter = {
   id: 'entropy',
   name: 'Entropy Map',
-  slow: false,
-  meta: false,
   presets: [
     { name: '8×8 blocks',   params: { blockSize: 8,  colormap: 'viridis' } },
     { name: '16×16 blocks', params: { blockSize: 16, colormap: 'viridis' } },

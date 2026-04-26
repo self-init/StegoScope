@@ -8,7 +8,6 @@
 export const bitplaneXorFilter = {
   id: 'bitplane-xor',
   name: 'Bitplane XOR',
-  slow: false,
   presets: [
     { name: 'G XOR A bit0', params: { channelA: 'G', bitA: 0, channelB: 'A', bitB: 0 } },
     { name: 'R XOR A bit0', params: { channelA: 'R', bitA: 0, channelB: 'A', bitB: 0 } },

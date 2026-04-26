@@ -5,7 +5,6 @@
 export const noiseFilter = {
   id: 'noise',
   name: 'Noise',
-  slow: false,
   presets: [
     { name: 'Soft',       params: { radius: 1, scale: 4 } },
     { name: 'Aggressive', params: { radius: 2, scale: 8 } },

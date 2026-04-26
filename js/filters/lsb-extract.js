@@ -1,7 +1,6 @@
 export const lsbExtractFilter = {
   id: 'lsb-extract',
   name: 'LSB Extract',
-  slow: false,
   meta: true,
   presets: [
     { name: 'R bit0 row MSB',   params: { channel: 'r',    bit: 0, order: 'row', endian: 'msb' } },

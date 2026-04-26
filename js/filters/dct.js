@@ -59,8 +59,6 @@ function lerp3(stops, t) {
 export const dctFilter = {
   id: 'dct',
   name: 'DCT Analysis',
-  slow: true,
-  meta: false,
   presets: [
     { name: 'AC Energy',    params: { mode: 'ac',  colormap: 'viridis' } },
     { name: 'DC Component', params: { mode: 'dc',  colormap: 'viridis' } },

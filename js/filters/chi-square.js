@@ -46,8 +46,6 @@ function chi2pvalue(chi2, df) {
 export const chiSquareFilter = {
   id: 'chi-square',
   name: 'Chi-Square',
-  slow: false,
-  meta: true,
   presets: [
     { name: 'Full image',       params: { region: 'full'  } },
     { name: 'Top half',         params: { region: 'top'   } },

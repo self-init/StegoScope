@@ -6,7 +6,6 @@
 export const pcaFilter = {
   id: 'pca',
   name: 'PCA',
-  slow: true,
   presets: [
     { name: 'PC1', params: { component: 1, normalize: true } },
     { name: 'PC2', params: { component: 2, normalize: true } },

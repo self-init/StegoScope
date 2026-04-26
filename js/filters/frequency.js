@@ -4,7 +4,6 @@
 export const frequencyFilter = {
   id: 'frequency',
   name: 'Frequency Split',
-  slow: false,
   presets: [
     { name: 'High Pass', params: { band: 'high', radius: 3, scale: 4 } },
     { name: 'Low Pass',  params: { band: 'low',  radius: 3, scale: 1 } },

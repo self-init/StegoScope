@@ -4,7 +4,6 @@
 export const channelFilter = {
   id: 'channel',
   name: 'Channel',
-  slow: false,
   presets: [
     { name: 'Red',   params: { channel: 'r' } },
     { name: 'Green', params: { channel: 'g' } },

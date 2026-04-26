@@ -80,8 +80,6 @@ function renderSwatches(colors) {
 export const paletteFilter = {
   id: 'palette',
   name: 'Palette',
-  slow: false,
-  meta: false,
   presets: [
     { name: 'File Palette',  params: { source: 'file', maxColors: 256 } },
     { name: 'Top 64 Colors', params: { source: 'pixels', maxColors: 64  } },

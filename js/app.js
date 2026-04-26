@@ -1,5 +1,8 @@
-import { FILTERS, runFilter, getPresetParams } from './filters/index.js';
+import { FILTERS, getPresetParams } from './filters/index.js';
 import { BUILTIN_TABS } from './presets.js';
+import { FilterWorkerPool } from './workers/pool.js';
+
+const workerPool = new FilterWorkerPool();
 
 // =====================================================================
 // State
@@ -125,6 +128,8 @@ function loadImageFile(file) {
 
     dropZone.hidden   = true;
     tileGrid.hidden   = false;
+
+    workerPool.start();
 
     renderTabs();
     renderHistory();
@@ -406,13 +411,16 @@ async function runTile(idx) {
   if (loadingDiv) loadingDiv.style.display = 'flex';
   tile.loading = true;
 
-  // Yield so the spinner paints before synchronous filter computation
-  await new Promise(r => setTimeout(r, 0));
-
   try {
-    const result = await runFilter(
-      tile.filterId, state.baseImageData, tile.params, state.baseCanvas, state.rawFile,
-    );
+    // Get rawFile as ArrayBuffer (File can't cross worker boundary)
+    const rawFileBuffer = state.rawFile ? await state.rawFile.arrayBuffer() : null;
+
+    const result = await workerPool.dispatch({
+      filterId: tile.filterId,
+      imageData: state.baseImageData,
+      params: tile.params,
+      rawFile: rawFileBuffer,
+    });
 
     tile.resultImageData = result;
     tile.loading = false;
@@ -705,12 +713,7 @@ function openPanel(idx) {
   paramPanelBody.hidden        = false;
 
   updateKeybindBar();
-
-  if (filter.slow) {
-    paramTitle.innerHTML = filter.name + ' <span class="slow-badge">slow</span>';
-  } else {
-    paramTitle.textContent = filter.name;
-  }
+  paramTitle.textContent = filter.name;
 
   renderPresetBar(filter, tile.presetName);
   renderParamControls(filter, state.panelParams);
@@ -765,7 +768,7 @@ function renderPresetBar(filter, activePresetName) {
       renderPresetBar(filter, preset.name);
       renderParamControls(filter, state.panelParams);
       markDirty();
-      if (!filter.slow) applyParamPreview();
+      if (state.panelDirty) applyParamPreview();
     });
     pill.addEventListener('keydown', e => {
       const pills = [...presetBar.querySelectorAll('.preset-pill')];
@@ -822,7 +825,7 @@ function renderParamControls(filter, params) {
         params[schema.id] = v;
         valSpan.textContent = v;
         markDirty();
-        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) applyParamPreview();
+        if (FILTERS[state.tiles[state.panelTileIdx]?.filterId]) applyParamPreview();
       });
 
       group.appendChild(labelRow);
@@ -843,7 +846,7 @@ function renderParamControls(filter, params) {
       sel.addEventListener('change', () => {
         params[schema.id] = sel.value;
         markDirty();
-        if (!FILTERS[state.tiles[state.panelTileIdx]?.filterId]?.slow) applyParamPreview();
+        if (FILTERS[state.tiles[state.panelTileIdx]?.filterId]) applyParamPreview();
       });
       sel.addEventListener('keydown', e => {
         // Block left/right from cycling options
@@ -867,7 +870,7 @@ function markDirty() {
 function updatePromoteBtn() {
   const filter = FILTERS[state.tiles[state.panelTileIdx]?.filterId];
   promoteBtn.disabled = !!filter?.meta;
-  if (filter?.slow && state.panelDirty) {
+  if (state.panelDirty) {
     applyBtn.hidden = false;
     promoteBtn.textContent = 'Apply & Promote';
   } else if (state.panelDirty) {
@@ -982,7 +985,7 @@ function promoteCurrentTile() {
   if (idx < 0) return;
   const tile   = state.tiles[idx];
   const filter = FILTERS[tile.filterId];
-  if (filter?.slow && state.panelDirty) {
+  if (state.panelDirty) {
     (async () => { tile.params = { ...state.panelParams }; await runTile(idx); promote(idx); })();
     return;
   }

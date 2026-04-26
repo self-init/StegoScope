@@ -1,8 +1,6 @@
 export const curvesFilter = {
   id: 'curves',
   name: 'Curves',
-  slow: false,
-  meta: false,
   presets: [
     { name: 'Brighten',      params: { brightness: 40,  contrast: 0,   gamma: 1.0 } },
     { name: 'Darken',        params: { brightness: -40, contrast: 0,   gamma: 1.0 } },

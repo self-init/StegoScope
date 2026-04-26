@@ -6,7 +6,6 @@ import { readBuffer, parseExif, gpsToDecimal } from './util/exif.js';
 export const gpsFilter = {
   id: 'gps',
   name: 'GPS',
-  slow: false,
   meta: true,
   presets: [{ name: 'All', params: {} }],
   defaultPreset: 'All',

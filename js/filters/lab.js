@@ -4,7 +4,6 @@
 export const labFilter = {
   id: 'lab',
   name: 'LAB',
-  slow: false,
   presets: [
     { name: 'L*', params: { channel: 'l' } },
     { name: 'a*', params: { channel: 'a' } },

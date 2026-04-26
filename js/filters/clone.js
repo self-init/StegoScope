@@ -6,7 +6,6 @@
 export const cloneFilter = {
   id: 'clone',
   name: 'Clone Detection',
-  slow: true,
   presets: [
     { name: 'Fast (16px)',   params: { blockSize: 16, threshold: 2 } },
     { name: 'Detail (8px)', params: { blockSize: 8,  threshold: 2 } },

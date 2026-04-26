@@ -90,7 +90,6 @@ function scan(bytes) {
 export const embeddedFilter = {
   id: 'embedded',
   name: 'Embedded Files',
-  slow: false,
   meta: true,
   presets: [{ name: 'Scan All', params: {} }],
   defaultPreset: 'Scan All',

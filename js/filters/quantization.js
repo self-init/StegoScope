@@ -6,7 +6,6 @@ import { readBuffer, parseExif, estimateJpegQuality } from './util/exif.js';
 export const quantizationFilter = {
   id: 'quantization',
   name: 'Quant Tables',
-  slow: false,
   meta: true,
   presets: [{ name: 'All Tables', params: {} }],
   defaultPreset: 'All Tables',

@@ -6,7 +6,6 @@ import { readBuffer } from './util/exif.js';
 export const stringsFilter = {
   id: 'strings',
   name: 'Strings',
-  slow: false,
   meta: true,
   presets: [
     { name: 'ASCII ≥6',  params: { minLength: 6, encoding: 'ascii' } },
