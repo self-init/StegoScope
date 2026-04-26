@@ -16,8 +16,18 @@ import { jpegGhostFilter }  from './jpeg-ghost.js';
 import { thumbnailFilter }  from './thumbnail.js';
 import { gpsFilter }        from './gps.js';
 import { quantizationFilter } from './quantization.js';
-import { stringsFilter }    from './strings.js';
-import { autodetectFilter } from './autodetect.js';
+import { stringsFilter }        from './strings.js';
+import { autodetectFilter }     from './autodetect.js';
+import { curvesFilter }         from './curves.js';
+import { colormapFilter }       from './colormap.js';
+import { entropyFilter }        from './entropy.js';
+import { fftFilter }            from './fft.js';
+import { dctFilter }            from './dct.js';
+import { lsbExtractFilter }     from './lsb-extract.js';
+import { chiSquareFilter }      from './chi-square.js';
+import { embeddedFilter }       from './embedded.js';
+import { paletteFilter }        from './palette.js';
+import { byteHistogramFilter }  from './byte-histogram.js';
 
 export const FILTERS = {
   channel:   channelFilter,
@@ -40,6 +50,16 @@ export const FILTERS = {
   quantization: quantizationFilter,
   strings:   stringsFilter,
   autodetect: autodetectFilter,
+  curves:         curvesFilter,
+  colormap:       colormapFilter,
+  entropy:        entropyFilter,
+  fft:            fftFilter,
+  dct:            dctFilter,
+  'lsb-extract':  lsbExtractFilter,
+  'chi-square':   chiSquareFilter,
+  embedded:       embeddedFilter,
+  palette:        paletteFilter,
+  'byte-histogram': byteHistogramFilter,
 };
 
 /**

@@ -13,7 +13,9 @@ const state = {
   currentTabIdx: 0,
   focusedTileIdx: -1,
   tiles: [],
-  panelOpen: false,
+  panelOpen: false,           // tile content loaded in properties panel
+  propertiesPanelOpen: true,  // properties panel drawer visible
+  historyPanelOpen: true,     // history panel drawer visible
   panelTileIdx: -1,
   panelParams: null,
   panelDirty: false,
@@ -23,34 +25,37 @@ const state = {
 // =====================================================================
 // DOM refs
 // =====================================================================
-const dropZone       = document.getElementById('drop-zone');
-const fileInput      = document.getElementById('file-input');
-const tileGrid       = document.getElementById('tile-grid');
-const historyList    = document.getElementById('history-list');
-const historyPanel   = document.getElementById('history-panel');
-const tabBar         = document.getElementById('tab-bar');
-const imageInfo      = document.getElementById('image-info');
-const paramPanel     = document.getElementById('param-panel');
-const paramTitle     = document.getElementById('param-panel-title');
-const paramClose     = document.getElementById('param-panel-close');
-const presetBar      = document.getElementById('preset-bar');
-const paramCtrls     = document.getElementById('param-controls');
-const promoteBtn     = document.getElementById('promote-btn');
-const applyBtn       = document.getElementById('apply-btn');
-const exportTileBtn  = document.getElementById('export-tile-btn');
-const undoBtn        = document.getElementById('undo-btn');
-const redoBtn        = document.getElementById('redo-btn');
-const menuDropdown   = document.getElementById('menu-dropdown');
-const menubar        = document.getElementById('menubar');
-const previewOverlay = document.getElementById('preview-overlay');
-const previewCanvas  = document.getElementById('preview-canvas');
-const previewLabel   = document.getElementById('preview-label');
-const previewDims    = document.getElementById('preview-dims');
-const previewClose   = document.getElementById('preview-close');
-const keybindBar     = document.getElementById('keybind-bar');
-const zoomInBtn      = document.getElementById('zoom-in-btn');
-const zoomOutBtn     = document.getElementById('zoom-out-btn');
-const zoomLabel      = document.getElementById('zoom-label');
+const dropZone              = document.getElementById('drop-zone');
+const fileInput             = document.getElementById('file-input');
+const tileGrid              = document.getElementById('tile-grid');
+const historyList           = document.getElementById('history-list');
+const historyPanel          = document.getElementById('history-panel');
+const historyPanelClose     = document.getElementById('history-panel-close');
+const tabBar                = document.getElementById('tab-bar');
+const imageInfo             = document.getElementById('image-info');
+const paramPanel            = document.getElementById('param-panel');
+const paramTitle            = document.getElementById('param-panel-title');
+const paramClose            = document.getElementById('param-panel-close');
+const paramPanelBody        = document.getElementById('param-panel-body');
+const paramPanelPlaceholder = document.getElementById('param-panel-placeholder');
+const presetBar             = document.getElementById('preset-bar');
+const paramCtrls            = document.getElementById('param-controls');
+const promoteBtn            = document.getElementById('promote-btn');
+const applyBtn              = document.getElementById('apply-btn');
+const exportTileBtn         = document.getElementById('export-tile-btn');
+const undoBtn               = document.getElementById('undo-btn');
+const redoBtn               = document.getElementById('redo-btn');
+const menuDropdown          = document.getElementById('menu-dropdown');
+const menubar               = document.getElementById('menubar');
+const previewOverlay        = document.getElementById('preview-overlay');
+const previewCanvas         = document.getElementById('preview-canvas');
+const previewLabel          = document.getElementById('preview-label');
+const previewDims           = document.getElementById('preview-dims');
+const previewClose          = document.getElementById('preview-close');
+const keybindBar            = document.getElementById('keybind-bar');
+const zoomInBtn             = document.getElementById('zoom-in-btn');
+const zoomOutBtn            = document.getElementById('zoom-out-btn');
+const zoomLabel             = document.getElementById('zoom-label');
 
 // =====================================================================
 // Zoom
@@ -161,6 +166,9 @@ function getViewMenu() {
   return [
     { label: 'Preview',    action: showPreview,          keyhint: 'Space' },
     { sep: true },
+    { label: 'History Panel',    checked: state.historyPanelOpen,    action: toggleHistoryPanel },
+    { label: 'Properties Panel', checked: state.propertiesPanelOpen, action: togglePropertiesPanel },
+    { sep: true },
     { label: 'Zoom In',    action: () => adjustZoom(+1), keyhint: 'Ctrl+=' },
     { label: 'Zoom Out',   action: () => adjustZoom(-1), keyhint: 'Ctrl+−' },
     { label: 'Reset Zoom', action: () => setZoom(3),     keyhint: 'Ctrl+0' },
@@ -181,10 +189,12 @@ function openMenuDropdown(name, items) {
     }
     const btn = document.createElement('button');
     btn.className = 'menu-item';
+    const checkSpan = `<span class="menu-check">${'checked' in item && item.checked ? '✓' : ''}</span>`;
+    const left = `<span class="menu-left">${checkSpan}<span>${escHtml(item.label)}</span></span>`;
     if (item.keyhint) {
-      btn.innerHTML = `<span>${escHtml(item.label)}</span><span class="menu-item-hint">${escHtml(item.keyhint)}</span>`;
+      btn.innerHTML = left + `<span class="menu-item-hint">${escHtml(item.keyhint)}</span>`;
     } else {
-      btn.textContent = item.label;
+      btn.innerHTML = left;
     }
     btn.addEventListener('click', () => { closeMenuDropdown(); item.action(); });
     menuDropdown.appendChild(btn);
@@ -465,13 +475,92 @@ function focusHistory() {
 }
 
 function focusPanel() {
-  promoteBtn.focus();
+  if (state.panelOpen) promoteBtn.focus();
+  else if (state.propertiesPanelOpen) paramClose.focus();
 }
 
 function focusMenubar() {
   const first = tabBar.querySelector('.tab-btn') ?? menubar.querySelector('.menu-btn');
   first?.focus();
 }
+
+// =====================================================================
+// Panel visibility helpers
+// =====================================================================
+function hidePropertiesPanel() {
+  state.propertiesPanelOpen = false;
+  state.panelOpen           = false;
+  state.panelTileIdx        = -1;
+  paramPanel.classList.add('panel-hidden');
+  paramPanelBody.hidden        = false;
+  paramPanelPlaceholder.hidden = true;
+  presetBar.innerHTML  = '';
+  paramCtrls.innerHTML = '';
+  tileGrid.querySelectorAll('.tile-active-panel').forEach(el => el.classList.remove('tile-active-panel'));
+  updateKeybindBar();
+}
+
+function showPropertiesPanel() {
+  state.propertiesPanelOpen = true;
+  paramPanel.classList.remove('panel-hidden');
+  paramPanelPlaceholder.hidden = false;
+  paramPanelBody.hidden        = true;
+  updateKeybindBar();
+}
+
+function toggleHistoryPanel() {
+  state.historyPanelOpen = !state.historyPanelOpen;
+  historyPanel.classList.toggle('panel-collapsed', !state.historyPanelOpen);
+}
+
+function togglePropertiesPanel() {
+  if (state.propertiesPanelOpen) hidePropertiesPanel();
+  else showPropertiesPanel();
+}
+
+historyPanelClose.addEventListener('click', () => {
+  state.historyPanelOpen = false;
+  historyPanel.classList.add('panel-collapsed');
+});
+
+// Panel resize
+function initPanelResize(handle, panel, direction) {
+  let startX, startW;
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.style.cursor    = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = e => {
+      const delta = e.clientX - startX;
+      const newW  = Math.max(120, Math.min(480,
+        direction === 'right' ? startW + delta : startW - delta,
+      ));
+      panel.style.width = newW + 'px';
+    };
+    const onUp = () => {
+      handle.classList.remove('dragging');
+      document.body.style.cursor    = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+}
+
+initPanelResize(
+  historyPanel.querySelector('.panel-resize-handle'),
+  historyPanel, 'right',
+);
+initPanelResize(
+  paramPanel.querySelector('.panel-resize-handle'),
+  paramPanel, 'left',
+);
 
 // =====================================================================
 // Focus / keyboard
@@ -574,18 +663,27 @@ document.addEventListener('keydown', e => {
 // Parameter Panel
 // =====================================================================
 function openPanel(idx) {
+  if (!state.propertiesPanelOpen) return; // panel hidden — don't auto-open
+
   const tile = state.tiles[idx];
   if (!tile) return;
   const filter = FILTERS[tile.filterId];
   if (!filter) return;
 
+  // Mark tile
+  tileGrid.querySelectorAll('.tile-active-panel').forEach(el => el.classList.remove('tile-active-panel'));
+  tileGrid.children[idx]?.classList.add('tile-active-panel');
+
   state.panelOpen    = true;
   state.panelTileIdx = idx;
   state.panelParams  = { ...tile.params };
   state.panelDirty   = false;
+
+  paramPanelPlaceholder.hidden = true;
+  paramPanelBody.hidden        = false;
+
   updateKeybindBar();
 
-  paramPanel.classList.remove('panel-hidden');
   if (filter.slow) {
     paramTitle.innerHTML = filter.name + ' <span class="slow-badge">slow</span>';
   } else {
@@ -600,11 +698,15 @@ function openPanel(idx) {
 }
 
 function closePanelUI() {
+  tileGrid.querySelectorAll('.tile-active-panel').forEach(el => el.classList.remove('tile-active-panel'));
   state.panelOpen    = false;
   state.panelTileIdx = -1;
-  paramPanel.classList.add('panel-hidden');
   presetBar.innerHTML  = '';
   paramCtrls.innerHTML = '';
+  if (state.propertiesPanelOpen) {
+    paramPanelPlaceholder.hidden = false;
+    paramPanelBody.hidden        = true;
+  }
   updateKeybindBar();
 }
 
@@ -619,7 +721,7 @@ function focusLastControl() {
 
 paramClose.addEventListener('click', () => {
   const prev = state.panelTileIdx;
-  closePanelUI();
+  hidePropertiesPanel();
   if (prev >= 0) focusTile(prev);
 });
 

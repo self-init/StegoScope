@@ -37,11 +37,13 @@
         <div class="panel-header-actions">
           <button id="undo-btn" class="panel-icon-btn" title="Undo (Ctrl+Z)" disabled>↩</button>
           <button id="redo-btn" class="panel-icon-btn" title="Redo (Ctrl+Y)" disabled>↪</button>
+          <button id="history-panel-close" class="panel-icon-btn" title="Close History">×</button>
         </div>
       </div>
       <div id="history-list">
         <div class="history-empty">No image loaded</div>
       </div>
+      <div class="panel-resize-handle panel-resize-right"></div>
     </aside>
 
     <!-- Center: Grid Area -->
@@ -68,12 +70,14 @@
     </main>
 
     <!-- Right: Parameter Panel -->
-    <aside id="param-panel" class="panel-hidden">
+    <aside id="param-panel">
+      <div class="panel-resize-handle panel-resize-left"></div>
       <div class="panel-header">
         <span id="param-panel-title">Filter</span>
         <button id="param-panel-close" title="Close (Esc)">×</button>
       </div>
-      <div id="param-panel-body">
+      <div id="param-panel-placeholder">Select a tile to view properties</div>
+      <div id="param-panel-body" hidden>
         <div id="param-panel-top">
           <button id="apply-btn"       class="btn-secondary" hidden>Apply</button>
           <button id="promote-btn"     class="btn-primary">Promote</button>
